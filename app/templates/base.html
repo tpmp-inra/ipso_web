@@ -14,11 +14,21 @@
                     <span class="icon-bar"></span>
                     <span class="icon-bar"></span>
                 </button>
-                <a class="navbar-brand" href="{{ url_for('main.index') }}">IPSO Web</a>
+                <a class="navbar-brand" href="https://www.inrae.fr">
+                    <img alt="INRAE" src="{{url_for('static', filename='BlocMarque-INRAE-Inter_Transparent.png')}}"
+                    height="24" style="vertical-align:bottom">
+                </a>
+                <a class="navbar-brand" href="https://www6.toulouse.inrae.fr/lipm">
+                    <img  alt="LIPM" src="{{url_for('static', filename='Logo-Partenaire_inra_logo.jpg')}}"
+                    height="24" style="vertical-align:bottom">
+                </a>
+                <a class="navbar-brand" href="{{ url_for('main.index') }}">
+                    IPSO Web
+                </a>
             </div>
             <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
                 <ul class="nav navbar-nav">
-                    <li><a href="{{ url_for('main.index') }}">{{ _('Launch tasks') }}</a></li>
+                    <li><a href="{{ url_for('main.launch') }}">{{ _('Launch tasks') }}</a></li>
                 </ul>
                 <ul class="nav navbar-nav navbar-right">
                     {% if current_user.is_anonymous %}

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% import 'bootstrap/wtf.html' as wtf %}
+
+{% block app_content %}
+    <h1>{{ _('Logged as %(username)s', username=current_user.username) }}</h1>
+    {% if upload_form %}
+        <h2>Select a pipeline or a stored state</h2>
+        <form method="POST" enctype="multipart/form-data">
+            {{ upload_form.hidden_tag() }} 
+            {{ upload_form.script_or_stored_state}} 
+            <br>
+            <button type="submit">Upload</button>
+        </form>
+        <br>
+    {% endif %}
+{% endblock %}
