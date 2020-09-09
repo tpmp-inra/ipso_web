@@ -2,15 +2,56 @@
 {% import 'bootstrap/wtf.html' as wtf %}
 
 {% block app_content %}
-    <h1>{{ _('Logged as %(username)s', username=current_user.username) }}</h1>
+    <h1>Prepare batch process</h1>
+    <br>
     {% if upload_form %}
-        <h2>Select a pipeline or a stored state</h2>
-        <form method="POST" enctype="multipart/form-data">
-            {{ upload_form.hidden_tag() }} 
-            {{ upload_form.script_or_stored_state}} 
-            <br>
-            <button type="submit">Upload</button>
-        </form>
-        <br>
+        <h2>Select a pipeline or a stored state</h2>        
+        <div class="row">
+            <form class="form-inline center-block" method="POST" enctype="multipart/form-data">
+                {{ upload_form.hidden_tag() }}
+                <div class="input-group">
+                    <label id="browsebutton" >
+                        {{ upload_form.input_file(id="my-file-selector", class_="btn btn-default btn-lg") }}
+                    </label>
+                    <label> &nbsp</label>
+                    <label id="uploadbutton" >
+                        <button type="submit" class="btn btn-primary">Upload</button>
+                    </label>
+                </div>
+            </form>
+        </div>    
+        <hr>
     {% endif %}
+    {% if common_form %}
+        {% if "loaded_file_name" in session %}
+            <h2>Options for: {{ session["loaded_file_name"]}}</h2>
+        {% else %}
+            <h2>Options</h2>
+        {% endif %}
+        
+        {{ wtf.quick_form(common_form) }}
+
+        {% if script_form %}
+            {{ wtf.quick_form(script_form) }}
+        {% endif %}
+
+        {% if images %}
+            <b>Images</b><br>
+            <textarea 
+                readonly class="form-control" id="exampleFormControlTextarea1" rows="6"
+            >{{images["excerpt"]}}</textarea>
+            {% if images["excess"] > 0 %}
+                and {{images["excess"]}} others
+            {% endif %}
+        {% endif %}
+        <hr>
+    {% endif %}
+    <form 
+        class="form-inline center-block" 
+        action="/launch" 
+        method="POST"
+    >
+        {{ launch_form.hidden_tag() }}
+        {{ launch_form.launch(id="launch-process", class_=launch_btn_class, style="float: right;") }}
+    </form>
 {% endblock %}

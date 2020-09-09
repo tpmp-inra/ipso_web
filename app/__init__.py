@@ -10,6 +10,8 @@ from flask_mail import Mail
 from flask_bootstrap import Bootstrap
 from flask_babel import Babel, lazy_gettext as _l
 from flask_moment import Moment
+from flask_uploads import configure_uploads, UploadSet, DATA
+from flask_caching import Cache
 
 from config import Config
 
@@ -23,6 +25,8 @@ mail = Mail()
 bootstrap = Bootstrap()
 moment = Moment()
 babel = Babel()
+jsons = UploadSet("jsons", DATA)
+cache = Cache()
 
 
 def create_app(config_class=Config):
@@ -36,6 +40,8 @@ def create_app(config_class=Config):
     bootstrap.init_app(app)
     moment.init_app(app)
     babel.init_app(app)
+    cache.init_app(app)
+    configure_uploads(app, jsons)
 
     from app.auth import bp as auth_bp
 
