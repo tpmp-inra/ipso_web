@@ -11,6 +11,7 @@ class Config(object):
         "DATABASE_URL"
     ) or "sqlite:///" + os.path.join(basedir, "ipso_web.db")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    UPLOADED_JSONS_DEST = "uploads/jsons"
     MAIL_SERVER = os.environ.get("MAIL_SERVER")
     MAIL_PORT = int(os.environ.get("MAIL_PORT") or 25)
     MAIL_USE_TLS = os.environ.get("MAIL_USE_TLS") is not None
@@ -20,3 +21,4 @@ class Config(object):
     LANGUAGES = ["en", "es"]
     MS_TRANSLATOR_KEY = os.environ.get("MS_TRANSLATOR_KEY")
     POSTS_PER_PAGE = 25
+    CACHE_TYPE = "simple"
