@@ -61,9 +61,6 @@ def create_app(config_class=Config):
     logger.info(
         "_________________________________________________________________________"
     )
-    logger.info(
-        "_________________________________________________________________________"
-    )
     logger.info("Launching IPSO WEB")
 
     return app
