@@ -2,7 +2,7 @@
 {% import 'bootstrap/wtf.html' as wtf %}
 
 {% block app_content %}
-    <h1>Welcome to IPSO Web, {% if current_user.is_anonymous %}Please log in to continue{% else %}{{ current_user.username }}{% endif %}</h1>
+    <h1>Welcome to IPSO Web {% if current_user.is_anonymous %}Please log in to continue{% else %}, {{ current_user.username }}{% endif %}</h1>
     <br>
     <div class="text-center">
         <img 

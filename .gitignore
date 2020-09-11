@@ -130,3 +130,4 @@ dmypy.json
 ipso_web.db
 
 *.json
+app/templates/celery_test.html
