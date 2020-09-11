@@ -13,6 +13,8 @@ from flask_moment import Moment
 from flask_uploads import configure_uploads, UploadSet, DATA
 from flask_caching import Cache
 
+from celery import Celery
+
 from config import Config
 
 
@@ -27,6 +29,7 @@ moment = Moment()
 babel = Babel()
 jsons = UploadSet("jsons", DATA)
 cache = Cache()
+celery = Celery(__name__, broker=Config.CELERY_BROKER_URL)
 
 
 def create_app(config_class=Config):
@@ -42,6 +45,7 @@ def create_app(config_class=Config):
     babel.init_app(app)
     cache.init_app(app)
     configure_uploads(app, jsons)
+    celery.conf.update(app.config)
 
     from app.auth import bp as auth_bp
 

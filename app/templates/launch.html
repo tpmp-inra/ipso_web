@@ -15,7 +15,7 @@
                     </label>
                     <label> &nbsp</label>
                     <label id="uploadbutton" >
-                        <button type="submit" class="btn btn-primary">Upload</button>
+                        {{ upload_form.upload_data(class_="btn btn-primary") }}
                     </label>
                 </div>
             </form>
@@ -52,6 +52,6 @@
         method="POST"
     >
         {{ launch_form.hidden_tag() }}
-        {{ launch_form.launch(id="launch-process", class_=launch_btn_class, style="float: right;") }}
+        {{ launch_form.review(id="launch-process", class_="btn btn-primary", style="float: right;") }}
     </form>
 {% endblock %}

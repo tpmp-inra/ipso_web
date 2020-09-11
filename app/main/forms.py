@@ -25,8 +25,8 @@ from app.models import User
 
 
 class UploadForm(FlaskForm):
-
     input_file = FileField("")
+    upload_data = SubmitField("Upload data")
 
 
 class CommonOptions(FlaskForm):
@@ -35,23 +35,28 @@ class CommonOptions(FlaskForm):
         validators=[NumberRange(min=0, max=mp.cpu_count() - 1)],
         default=1,
     )
-    csv_out_name = StringField(label=_("Output file name"))
-    overwrite = BooleanField(label=_("Overwrite"))
+    csv_file_name = StringField(label=_("Output file name"))
+    overwrite_existing = BooleanField(label=_("Overwrite"))
     build_annotation_csv = BooleanField(label=_("Build annotation CSV"))
     generate_series_id = BooleanField(label=_("Generate series IDs"))
-    series_id_delta = IntegerField(label="Max delta for series Id", default=20)
+    series_id_time_delta = IntegerField(label="Max delta for series Id", default=20)
 
 
 class ScriptOptions(FlaskForm):
     image_list = MultipleFileField(label="Images to analyse")
 
 
-class EmptyForm(FlaskForm):
-    submit = SubmitField("Submit")
+class ExecuteForm(FlaskForm):
+    go_back = SubmitField("< Back")
+    execute = SubmitField("Execute")
 
 
 class LaunchProcess(FlaskForm):
-    launch = SubmitField("Launch")
+    review = SubmitField("Review >")
+
+
+class EmptyForm(FlaskForm):
+    submit = SubmitField("submit")
 
 
 class EditProfileForm(FlaskForm):
