@@ -130,4 +130,4 @@ dmypy.json
 ipso_web.db
 
 *.json
-app/templates/celery_test.html
+generated_files/.treizh_abort

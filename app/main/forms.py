@@ -46,13 +46,13 @@ class ScriptOptions(FlaskForm):
     image_list = MultipleFileField(label="Images to analyse")
 
 
-class ExecuteForm(FlaskForm):
+class ReviewForm(FlaskForm):
     go_back = SubmitField("< Back")
-    execute = SubmitField("Execute")
+    execute = SubmitField("Execute >")
 
 
 class LaunchProcess(FlaskForm):
-    review = SubmitField("Review >")
+    review = SubmitField("Review & execute >")
 
 
 class EmptyForm(FlaskForm):

@@ -1,16 +1,15 @@
 import os
 from datetime import datetime
-import json
 import logging
-import time
-import random
+import pathlib
 
 from alembic import script
 from flask import render_template, flash, redirect, url_for, request, g, session, jsonify
 from flask_login import current_user, login_required
 from flask_babel import _, get_locale
+from celery.task.control import revoke
 
-from app import db, jsons, cache, celery
+from app import db, jsons
 from app.models import User
 from app.main import bp
 from app.main.forms import (
@@ -20,69 +19,18 @@ from app.main.forms import (
     ScriptOptions,
     UploadForm,
     LaunchProcess,
-    ExecuteForm,
+    ReviewForm,
+)
+from app.funs import (
+    get_source_configuration,
+    get_launch_configuration,
+    set_launch_configuration,
+    long_task,
+    get_process_info,
+    get_abort_file_path,
 )
 
 logger = logging.getLogger(__name__)
-
-
-@cache.memoize(timeout=180)
-def get_source_configuration(url: str):
-    if not url or not os.path.isfile(url):
-        return None
-    with open(url, "r") as f:
-        data = json.load(f)
-    if "script" in data:
-        if not "build_annotation_csv" in data:
-            data["build_annotation_csv"] = False
-        data["standalone"] = True
-        return data
-    elif "Pipeline" in data:
-        return dict(
-            csv_file_name="data.csv",
-            overwrite_existing=False,
-            script=data,
-            generate_series_id=False,
-            series_id_time_delta=0,
-            thread_count=1,
-            build_annotation_csv=False,
-            standalone=False,
-            images=[],
-        )
-    else:
-        return None
-
-
-def get_launch_config_path(user_name: str) -> str:
-    return os.path.join(".", "generated_files", f"{user_name}_launch_conf.json")
-
-
-def get_launch_configuration(user_name: str):
-    launch_conf_path = get_launch_config_path(user_name=user_name)
-    if os.path.isfile(launch_conf_path):
-        try:
-            with open(launch_conf_path, "r") as f:
-                return json.load(f)
-        except Exception as e:
-            flash(repr(e), category="error")
-            logger.exception(repr(e))
-    else:
-        return None
-
-
-def set_launch_configuration(user_name: str, data: dict, **kwargs):
-    data["csv_file_name"] = kwargs.get("csv_file_name")
-    data["overwrite_existing"] = kwargs.get("overwrite_existing")
-    data["generate_series_id"] = kwargs.get("generate_series_id")
-    data["series_id_time_delta"] = kwargs.get("series_id_time_delta")
-    data["thread_count"] = kwargs.get("thread_count")
-    data["build_annotation_csv"] = kwargs.get("build_annotation_csv")
-    data["images"] = kwargs.get("images")
-    launch_conf_path = get_launch_config_path(user_name=user_name)
-    if os.path.isfile(launch_conf_path):
-        os.remove(launch_conf_path)
-    with open(launch_conf_path, "w") as f:
-        json.dump(data, f, indent=2)
 
 
 @bp.before_app_request
@@ -99,45 +47,41 @@ def index():
     return render_template("index.html")
 
 
-@bp.route("/execute", methods=["GET", "POST"])
+@bp.route("/review", methods=["GET", "POST"])
 @login_required
-def execute():
-    execute_form = ExecuteForm()
-    if execute_form.validate_on_submit() and execute_form.go_back.data:
-        return redirect(url_for("main.launch"))
-    if execute_form.validate_on_submit() and execute_form.execute.data:
-        return redirect(url_for("main.celery_test"))
+def review():
+    review_form = ReviewForm()
+    if review_form.validate_on_submit() and review_form.go_back.data:
+        return redirect(url_for("main.prepare"))
+    if review_form.validate_on_submit() and review_form.execute.data:
+        return redirect(url_for("main.execute"))
 
     data = get_launch_configuration(current_user.username)
     if not data:
         flash("No launch configuration data available", category="error")
     return render_template(
-        template_name_or_list="execute.html",
-        execute_form=execute_form,
-        launch_data=data,
-        launch_info={
-            "pipeline_title": data.get("script", {}).get("title", ""),
-            "pipeline_desc": data.get("script", {}).get("description", ""),
-            "csv_file_name": data.get("csv_file_name", ""),
-            "overwrite_existing": data.get("overwrite_existing", ""),
-            "generate_series_id": data.get("generate_series_id", ""),
-            "series_id_time_delta": data.get("series_id_time_delta", ""),
-            "thread_count": data.get("thread_count", ""),
-            "build_annotation_csv": data.get("build_annotation_csv", ""),
-            "images": len(data.get("images", [])),
-        },
+        template_name_or_list="review.html",
+        review_form=review_form,
+        launch_info=get_process_info(data),
     )
 
 
-@bp.route("/celery_test", methods=["GET", "POST"])
+@bp.route("/execute", methods=["GET", "POST"])
 @login_required
-def celery_test():
-    return render_template("celery_test.html")
+def execute():
+    data = get_launch_configuration(current_user.username)
+    if not data:
+        flash("No launch configuration data available", category="error")
+    return render_template(
+        template_name_or_list="execute.html",
+        launch_info=get_process_info(data),
+        back_link="/revoke_queue",
+    )
 
 
-@bp.route("/launch", methods=["GET", "POST"])
+@bp.route("/prepare", methods=["GET", "POST"])
 @login_required
-def launch():
+def prepare():
     upload_form = UploadForm()
     if upload_form.validate_on_submit() and upload_form.upload_data.data:
         try:
@@ -212,11 +156,12 @@ def launch():
                 images=script_form.image_list.data
                 if data.get("standalone", False) is False
                 else data["images"],
+                current_user=current_user.username,
             )
             return redirect(url_for("main.execute"))
 
     return render_template(
-        "launch.html",
+        "prepare.html",
         title=_("Launch"),
         upload_form=upload_form,
         common_form=common_form,
@@ -254,33 +199,32 @@ def edit_profile():
     return render_template("edit_profile.html", title=_("Edit Profile"), form=form)
 
 
-@celery.task(bind=True)
-def long_task(self):
-    """Background task that runs a long function with progress reports."""
-    verb = ["Starting up", "Booting", "Repairing", "Loading", "Checking"]
-    adjective = ["master", "radiant", "silent", "harmonic", "fast"]
-    noun = ["solar array", "particle reshaper", "cosmic ray", "orbiter", "bit"]
-    message = ""
-    total = random.randint(10, 50)
-    for i in range(total):
-        if not message or random.random() < 0.25:
-            message = "{0} {1} {2}...".format(
-                random.choice(verb), random.choice(adjective), random.choice(noun)
-            )
-        self.update_state(
-            state="PROGRESS", meta={"current": i, "total": total, "status": message}
-        )
-        time.sleep(1)
-    return {"current": 100, "total": 100, "status": "Task completed!", "result": 42}
+@bp.route("/revoke_queue", methods=["POST"])
+@login_required
+def revoke_queue():
+    pathlib.Path(get_abort_file_path(current_user.username)).touch()
+    return redirect(url_for("main.prepare"))
 
 
-@bp.route("/longtask", methods=["POST"])
-def longtask():
-    task = long_task.apply_async()
-    return jsonify({}), 202, {"Location": url_for("main.taskstatus", task_id=task.id)}
+@bp.route("/init_queue", methods=["POST"])
+@login_required
+def init_queue():
+    abort_path = get_abort_file_path(current_user.username)
+    if os.path.isfile(abort_path):
+        os.remove(abort_path)
+    task = long_task.delay(
+        **get_launch_configuration(current_user.username),
+    )
+    session["task_id"] = task.id
+    return (
+        jsonify({}),
+        202,
+        {"Location": url_for("main.taskstatus", task_id=task.id)},
+    )
 
 
 @bp.route("/taskstatus/<task_id>")
+@login_required
 def taskstatus(task_id):
     task = long_task.AsyncResult(task_id)
     if task.state == "PENDING":
