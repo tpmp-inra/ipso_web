@@ -1,0 +1,44 @@
+<table style="width:100%">
+    <colgroup>
+        <col span="1" style="width: 40%;">
+        <col span="1" style="width: 60%;">
+    </colgroup>
+    <tbody>
+        <tr style="border-bottom:1px solid black">
+            <td><b><h3>Pipeline</h3></b></td>
+            <td>{{ launch_info["pipeline_title"] }}<br>{{ launch_info["pipeline_desc"] }}</td> 
+        </tr>
+        <tr>
+            <td><b>Out CSV file name</b></td>
+            <td>{{ launch_info["csv_file_name"] }}</td> 
+        </tr>
+        <tr>
+            <td><b>Overwrite existing output</b></td>
+            <td>{{ launch_info["overwrite_existing"] }}</td> 
+        </tr>
+        <tr>
+            <td><b>Generate series Ids</b></td>
+            <td>{{ launch_info["generate_series_id"] }}</td> 
+        </tr>
+        <tr>
+            <td><b>Max time delta when generating series Ids</b></td>
+            <td>{{ launch_info["series_id_time_delta"] }}</td> 
+        </tr>
+        <tr>
+            <td><b>Thread count</b></td>
+            <td>{{ launch_info["thread_count"] }}</td> 
+        </tr>
+        <tr>
+            <td><b>Build annotation ready CSV</b></td>
+            <td>{{ launch_info["build_annotation_csv"] }}</td> 
+        </tr>
+        <tr>
+            <td><b>Images</b></td>
+            <td>{{ launch_info["images"] }}</td> 
+        </tr>
+        <tr>
+            <td><b></b></td>
+            <td>{{ launch_info[""] }}</td> 
+        </tr>
+    </tbody>
+</table>
