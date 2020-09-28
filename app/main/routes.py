@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 import logging
 import pathlib
+from datetime import datetime as dt
 
 from alembic import script
 from flask import render_template, flash, redirect, url_for, request, g, session, jsonify
@@ -9,16 +10,14 @@ from flask_login import current_user, login_required
 from flask_babel import _, get_locale
 from celery.task.control import revoke
 
-from app import db, jsons
+from app import db, jsons, Config
 from app.models import User
 from app.main import bp
 from app.main.forms import (
     EmptyForm,
     EditProfileForm,
-    CommonOptions,
-    ScriptOptions,
+    ProcessOptions,
     UploadForm,
-    LaunchProcess,
     ReviewForm,
 )
 from app.funs import (
@@ -29,6 +28,7 @@ from app.funs import (
     get_process_info,
     get_abort_file_path,
 )
+from app.auth.funs import role_required
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,10 @@ def before_request():
 @bp.route("/", methods=["GET", "POST"])
 @bp.route("/index", methods=["GET", "POST"])
 def index():
-    return render_template("index.html")
+    return render_template(
+        template_name_or_list="index.html",
+        message="",
+    )
 
 
 @bp.route("/review", methods=["GET", "POST"])
@@ -66,22 +69,9 @@ def review():
     )
 
 
-@bp.route("/execute", methods=["GET", "POST"])
+@bp.route("/upload_state_or_pipeline", methods=["GET", "POST"])
 @login_required
-def execute():
-    data = get_launch_configuration(current_user.username)
-    if not data:
-        flash("No launch configuration data available", category="error")
-    return render_template(
-        template_name_or_list="execute.html",
-        launch_info=get_process_info(data),
-        back_link="/revoke_queue",
-    )
-
-
-@bp.route("/prepare", methods=["GET", "POST"])
-@login_required
-def prepare():
+def upload_state_or_pipeline():
     upload_form = UploadForm()
     if upload_form.validate_on_submit() and upload_form.upload_data.data:
         try:
@@ -106,68 +96,86 @@ def prepare():
             del session["script_or_stored_state"]
             del session["loaded_file_name"]
             logger.exception(repr(e))
-
-    if "script_or_stored_state" in session:
-        data = get_source_configuration(jsons.path(session["script_or_stored_state"]))
-        common_form = CommonOptions(
-            thread_count=data["thread_count"],
-            csv_file_name=data["csv_file_name"],
-            overwrite_existing=data["overwrite_existing"],
-            build_annotation_csv=data["build_annotation_csv"],
-        )
-        if data.get("standalone", False) is True:
-            images = {
-                "excerpt": "\n".join(data["images"][:10]),
-                "excess": len(data["images"]) - 10,
-            }
-            script_form = None
         else:
-            script_form = ScriptOptions(image_list=data["images"])
-            images = None
-    else:
-        common_form = None
-        script_form = None
-        images = None
-
-    launch_form = LaunchProcess()
-    if launch_form.validate_on_submit() and launch_form.review.data:
-        data = get_source_configuration(
-            jsons.path(session.get("script_or_stored_state", ""))
-        )
-        if data is None or "script_or_stored_state" not in session:
-            flash(
-                _("Please load a pipeline or a stored state before proceeding"),
-                category="error",
-            )
-        elif data.get("standalone", False) is False and not script_form.image_list.data:
-            flash(_("Please add images before proceeding"), category="error")
-        elif data.get("standalone", False) is True and not data["images"]:
-            flash(_("Please add images before proceeding"), category="error")
-        else:
-            set_launch_configuration(
-                user_name=current_user.username,
-                data=data,
-                csv_file_name=common_form.csv_file_name.data,
-                overwrite_existing=common_form.overwrite_existing.data,
-                generate_series_id=common_form.generate_series_id.data,
-                series_id_time_delta=common_form.series_id_time_delta.data,
-                thread_count=common_form.thread_count.data,
-                build_annotation_csv=common_form.build_annotation_csv.data,
-                images=script_form.image_list.data
-                if data.get("standalone", False) is False
-                else data["images"],
-                current_user=current_user.username,
-            )
-            return redirect(url_for("main.execute"))
+            return redirect(url_for("main.prepare"))
 
     return render_template(
-        "prepare.html",
-        title=_("Launch"),
+        "upload_state_or_pipeline.html",
+        title=_("Upload"),
         upload_form=upload_form,
-        common_form=common_form,
-        script_form=script_form,
-        images=images,
-        launch_form=launch_form,
+    )
+
+
+@bp.route("/prepare", methods=["GET", "POST"])
+@login_required
+def prepare():
+    data = get_source_configuration(jsons.path(session.get("script_or_stored_state", "")))
+    if data is None:
+        flash(
+            _("Please load a pipeline or a stored state before proceeding"),
+            category="error",
+        )
+        return redirect(url_for("main.upload_state_or_pipeline"))
+
+    process_options_form = ProcessOptions(
+        thread_count=data["thread_count"],
+        csv_file_name=data["csv_file_name"],
+        overwrite_existing=data["overwrite_existing"],
+        sub_folder_name=data["sub_folder_name"]
+        if data["sub_folder_name"]
+        else f"{current_user.username}_{dt.now().strftime('%Y%b%d%H%M%S')}",
+        build_annotation_csv=data["build_annotation_csv"],
+        image_list=data["images"],
+    )
+
+    if process_options_form.validate_on_submit() and process_options_form.review.data:
+        # pics = request.files.getlist(process_options_form.image_list.name)
+        for pic in process_options_form.image_list.data:
+            print(type(pic))
+        set_launch_configuration(
+            user_name=current_user.username,
+            data=data,
+            csv_file_name=process_options_form.csv_file_name.data,
+            overwrite_existing=process_options_form.overwrite_existing.data,
+            sub_folder_name=process_options_form.sub_folder_name.data,
+            generate_series_id=process_options_form.generate_series_id.data,
+            series_id_time_delta=process_options_form.series_id_time_delta.data,
+            thread_count=process_options_form.thread_count.data,
+            build_annotation_csv=process_options_form.build_annotation_csv.data,
+            images=process_options_form.image_list.data
+            if len(data["images"]) <= 0
+            else data["images"],
+            current_user=current_user.username,
+        )
+        return redirect(url_for("main.execute"))
+    elif process_options_form.validate_on_submit() and process_options_form.back.data:
+        return redirect(url_for("main.upload_state_or_pipeline"))
+    else:
+        if len(data["images"]) > 0:
+            images = {
+                "excerpt": "\n".join(data["images"][:10]),
+                "excess": len(data["images"]) - 10 if len(data["images"]) > 10 else 0,
+            }
+        else:
+            images = None
+        return render_template(
+            "prepare.html",
+            title=_("Launch"),
+            process_options_form=process_options_form,
+            images=images,
+        )
+
+
+@bp.route("/execute", methods=["GET", "POST"])
+@login_required
+def execute():
+    data = get_launch_configuration(current_user.username)
+    if not data:
+        flash("No launch configuration data available", category="error")
+    return render_template(
+        template_name_or_list="execute.html",
+        launch_info=get_process_info(data),
+        back_link="/revoke_queue",
     )
 
 

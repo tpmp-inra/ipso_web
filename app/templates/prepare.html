@@ -1,57 +1,42 @@
 {% extends "base.html" %}
 {% import 'bootstrap/wtf.html' as wtf %}
 
+
 {% block app_content %}
-    <h1>Prepare batch process</h1>
-    <br>
-    {% if upload_form %}
-        <h2>Select a pipeline or a stored state</h2>        
-        <div class="row">
-            <form class="form-inline center-block" method="POST" enctype="multipart/form-data">
-                {{ upload_form.hidden_tag() }}
-                <div class="input-group">
-                    <label id="browsebutton" >
-                        {{ upload_form.input_file(id="my-file-selector", class_="btn btn-default btn-lg") }}
-                    </label>
-                    <label> &nbsp</label>
-                    <label id="uploadbutton" >
-                        {{ upload_form.upload_data(class_="btn btn-primary") }}
-                    </label>
-                </div>
-            </form>
-        </div>    
-        <hr>
-    {% endif %}
-    {% if common_form %}
+    {% if process_options_form %}
         {% if "loaded_file_name" in session %}
-            <h2>Options for: {{ session["loaded_file_name"]}}</h2>
+            <h2>Settings for: {{ session["loaded_file_name"]}}</h2>
         {% else %}
             <h2>Options</h2>
         {% endif %}
-        
-        {{ wtf.quick_form(common_form) }}
+        <form action="" method="post">
+            {{ process_options_form.hidden_tag() }}
 
-        {% if script_form %}
-            {{ wtf.quick_form(script_form) }}
-        {% endif %}
-
-        {% if images %}
-            <b>Images</b><br>
-            <textarea 
-                readonly class="form-control" id="exampleFormControlTextarea1" rows="6"
-            >{{images["excerpt"]}}</textarea>
-            {% if images["excess"] > 0 %}
-                and {{images["excess"]}} others
+            {{ wtf.form_field(process_options_form.thread_count) }}
+            {{ wtf.form_field(process_options_form.sub_folder_name) }}
+            {{ wtf.form_field(process_options_form.csv_file_name) }}
+            {{ wtf.form_field(process_options_form.overwrite_existing) }}
+            {{ wtf.form_field(process_options_form.build_annotation_csv) }}
+            {{ wtf.form_field(process_options_form.generate_series_id) }}
+            {{ wtf.form_field(process_options_form.series_id_time_delta) }}            
+            
+            {% if images %}
+                <b>Images</b><br>
+                <textarea 
+                    readonly class="form-control" id="exampleFormControlTextarea1" rows="4"
+                >{{images["excerpt"]}}</textarea>
+                {% if images["excess"] > 0 %}
+                    and {{images["excess"]}} others
+                {% endif %}
+            {% else %}
+                {{ wtf.form_field(process_options_form.image_list) }}
             {% endif %}
-        {% endif %}
-        <hr>
+
+            <br>
+            <hr>
+
+            {{ process_options_form.back(class_="btn btn-primary", style="float: left;") }}
+            {{ process_options_form.review(class_="btn btn-primary", style="float: right;") }}
+        </form>
     {% endif %}
-    <form 
-        class="form-inline center-block" 
-        action="/prepare" 
-        method="POST"
-    >
-        {{ launch_form.hidden_tag() }}
-        {{ launch_form.review(id="prepare-process", class_="btn btn-primary", style="float: right;") }}
-    </form>
 {% endblock %}

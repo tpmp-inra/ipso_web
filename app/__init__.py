@@ -1,6 +1,7 @@
 import logging
 from logging.handlers import SMTPHandler, RotatingFileHandler
 import os
+import re
 
 from flask import Flask, request, current_app
 from flask_sqlalchemy import SQLAlchemy
@@ -14,6 +15,16 @@ from flask_uploads import configure_uploads, UploadSet, DATA
 from flask_caching import Cache
 
 from celery import Celery
+
+reg = re.compile("export (?P<name>\w+)(\=(?P<value>.+))*")
+for line in open("./init_config.sh"):
+    m = reg.match(line)
+    if m:
+        name = m.group("name")
+        value = ""
+        if m.group("value"):
+            value = m.group("value")
+        os.putenv(name, value)
 
 from config import Config
 
@@ -48,16 +59,14 @@ def create_app(config_class=Config):
     celery.conf.update(app.config)
 
     from app.auth import bp as auth_bp
+    from app.errors import bp as errors_bp
+    from app.main import bp as main_bp
+    from app.database import bp as database_bp
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
-
-    from app.errors import bp as errors_bp
-
-    app.register_blueprint(errors_bp)
-
-    from app.main import bp as main_bp
-
+    app.register_blueprint(errors_bp, url_prefix="/errors")
     app.register_blueprint(main_bp)
+    app.register_blueprint(database_bp, url_prefix="/database")
 
     if not os.path.exists("logs"):
         os.mkdir("logs")
