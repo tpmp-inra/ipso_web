@@ -34,3 +34,8 @@ class Config(object):
     # Celery configuration
     CELERY_BROKER_URL = "redis://localhost:6379/0"
     CELERY_RESULT_BACKEND = "redis://localhost:6379/0"
+    # Connexion to server
+    TLS_PHENODB_JUMP_USER = os.environ.get("TLS_PHENODB_JUMP_USER")
+    TLS_PHENODB_JUMP_PWD = os.environ.get("TLS_PHENODB_JUMP_PWD")
+    TLS_PHENODB_HOST_USER = os.environ.get("TLS_PHENODB_HOST_USER")
+    TLS_PHENODB_HOST_PWD = os.environ.get("TLS_PHENODB_HOST_PWD")

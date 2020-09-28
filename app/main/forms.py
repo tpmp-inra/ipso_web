@@ -29,30 +29,31 @@ class UploadForm(FlaskForm):
     upload_data = SubmitField("Upload data")
 
 
-class CommonOptions(FlaskForm):
+class ProcessOptions(FlaskForm):
     thread_count = IntegerField(
         label=f"Thread count from 1 to {mp.cpu_count() - 1}",
         validators=[NumberRange(min=0, max=mp.cpu_count() - 1)],
         default=1,
     )
+    sub_folder_name = StringField(label=_("Output folder name"))
     csv_file_name = StringField(label=_("Output file name"))
     overwrite_existing = BooleanField(label=_("Overwrite"))
     build_annotation_csv = BooleanField(label=_("Build annotation CSV"))
     generate_series_id = BooleanField(label=_("Generate series IDs"))
     series_id_time_delta = IntegerField(label="Max delta for series Id", default=20)
 
+    image_list = MultipleFileField(
+        label="Images to analyse, can be paths or file containing list of paths",
+        default=None,
+    )
 
-class ScriptOptions(FlaskForm):
-    image_list = MultipleFileField(label="Images to analyse")
+    back = SubmitField("< Back")
+    review = SubmitField("Review & execute >")
 
 
 class ReviewForm(FlaskForm):
     go_back = SubmitField("< Back")
     execute = SubmitField("Execute >")
-
-
-class LaunchProcess(FlaskForm):
-    review = SubmitField("Review & execute >")
 
 
 class EmptyForm(FlaskForm):

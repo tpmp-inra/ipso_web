@@ -1,27 +1,47 @@
 import os
 import json
-import random
-import time
 import logging
 
 logger = logging.getLogger(__name__)
 
-from flask import flash, session
+from flask import flash
 
 from app import cache, celery
 
+import pandas as pd
+
 from ipapi.base.pipeline_processor import PipelineProcessor
 from ipapi.base.ipt_loose_pipeline import LoosePipeline
+from ipapi.file_handlers.fh_base import file_handler_factory
 
 
-def get_user_path(user_name: str, key: str):
+IS_USE_MULTI_THREAD = False
+
+
+def get_user_path(user_name: str, key: str, extra: str = ""):
     return {
         "launch_conf": os.path.join(
-            ".", "generated_files", f"{user_name}_launch_conf.json"
+            ".",
+            "generated_files",
+            f"{user_name}_launch_conf.json",
         ),
-        "abort_touch": os.path.join(".", "generated_files", f".{user_name}_abort"),
+        "abort_touch": os.path.join(
+            ".",
+            "generated_files",
+            f".{user_name}_abort",
+        ),
         "analysis_folder": os.path.join(
-            ".", "generated_files", f"{user_name}_analysis", ""
+            ".",
+            "generated_files",
+            f"{user_name}_analysis_{extra}",
+            "",
+        ),
+        "src_image_folder": os.path.join(
+            ".",
+            "generated_files",
+            f"{user_name}_analysis_{extra}",
+            "src_images",
+            "",
         ),
     }.get(key, "")
 
@@ -32,12 +52,12 @@ def get_source_configuration(url: str):
         return None
     with open(url, "r") as f:
         data = json.load(f)
-    if "script" in data:
+    if "script" in data:  # All required data is present
         if not "build_annotation_csv" in data:
             data["build_annotation_csv"] = False
         data["standalone"] = True
         return data
-    elif "Pipeline" in data:
+    elif "Pipeline" in data:  # Additional data is required
         return dict(
             csv_file_name="data.csv",
             overwrite_existing=False,
@@ -47,6 +67,7 @@ def get_source_configuration(url: str):
             thread_count=1,
             build_annotation_csv=False,
             standalone=False,
+            sub_folder_name="",
             images=[],
         )
     else:
@@ -92,24 +113,45 @@ def set_launch_configuration(user_name: str, data: dict, **kwargs):
 
 @celery.task(bind=True)
 def long_task(self, **kwargs):
-    def progress_callback(error_level, message, step, total):
+    def progress_callback(step, total):
         self.update_state(
             state="PROGRESS",
             meta={
                 "current": step,
                 "total": total,
-                "status": message,
+                "status": "Analysing images...",
             },
         )
 
+    def abort_callback():
+        return os.path.isfile(get_abort_file_path(kwargs["current_user"]))
+
+    output_folder = get_user_path(
+        user_name=kwargs["current_user"],
+        key="analysis_folder",
+        extra=kwargs["sub_folder_name"],
+    )
     pp = PipelineProcessor(
-        dst_path=get_user_path(user_name=kwargs["current_user"], key="analysis_folder"),
+        dst_path=output_folder,
         overwrite=kwargs["overwrite_existing"],
         seed_output=False,
         group_by_series=kwargs["generate_series_id"],
         store_images=False,
     )
-    pp.progress_and_log_callback = progress_callback
+    # for image in kwargs.get("images", []):
+
+    #     image.save(
+    #         os.path.join(
+    #             get_user_path(
+    #                 user_name=kwargs["current_user"],
+    #                 key="src_image_folder",
+    #                 extra=kwargs["sub_folder_name"],
+    #             ),
+    #             image.name,
+    #         )
+    #     )
+    pp.progress_callback = progress_callback
+    pp.abort_callback = abort_callback
     pp.ensure_root_output_folder()
     pp.accepted_files = kwargs.get("images", [])
     pp.script = LoosePipeline.from_json(json_data=kwargs["script"])
@@ -120,20 +162,77 @@ def long_task(self, **kwargs):
             "status": "No images in task!",
             "result": 42,
         }
+    groups_to_process = pp.prepare_groups(kwargs["series_id_time_delta"])
 
-    total = len(images)
-    for i, image in enumerate(images):
-        time.sleep(random.random())
+    # Generate annotation CSV
+    if kwargs["build_annotation_csv"]:
+        print("building csv")
         self.update_state(
             state="PROGRESS",
             meta={
-                "current": i,
-                "total": total,
-                "status": image,
+                "current": 0,
+                "total": 100,
+                "status": "Building annotation CSV file...",
             },
         )
-        if os.path.isfile(get_abort_file_path(kwargs["current_user"])):
-            return {"current": 100, "total": 100, "status": "Task aborted!", "result": 42}
+        try:
+            if pp.options.group_by_series:
+                files, luids = map(list, zip(*groups_to_process))
+                wrappers = [
+                    file_handler_factory(files[i])
+                    for i in [luids.index(x) for x in set(luids)]
+                ]
+            else:
+                wrappers = [file_handler_factory(f) for f in groups_to_process]
+            pd.DataFrame.from_dict(
+                {
+                    "plant": [i.plant for i in wrappers],
+                    "date_time": [i.date_time for i in wrappers],
+                    "disease_index": "",
+                }
+            ).sort_values(
+                by=["plant", "date_time"],
+                axis=0,
+                na_position="first",
+                ascending=True,
+            ).to_csv(
+                os.path.join(
+                    output_folder,
+                    f"{kwargs['csv_file_name']}_diseaseindex.csv",
+                ),
+                index=False,
+            )
+        except Exception as e:
+            logger.exception(f"Unable to build disease index file")
+        else:
+            logger.info("Built disease index file")
+
+        self.update_state(
+            state="PROGRESS",
+            meta={
+                "current": 0,
+                "total": 100,
+                "status": "Building annotation CSV file... Done",
+            },
+        )
+
+    groups_to_process_count = len(groups_to_process)
+    if groups_to_process_count > 0:
+        if IS_USE_MULTI_THREAD and "thread_count" in kwargs:
+            try:
+                pp.multi_thread = int(kwargs["thread_count"])
+            except:
+                pp.multi_thread = False
+        else:
+            pp.multi_thread = False
+        pp.process_groups(groups_list=groups_to_process)
+
+    if os.path.isfile(get_abort_file_path(kwargs["current_user"])):
+        return {"current": 100, "total": 100, "status": "Task aborted!", "result": 42}
+
+    # Merge dataframe
+    pp.merge_result_files(csv_file_name=kwargs["csv_file_name"] + ".csv")
+
     return {"current": 100, "total": 100, "status": "Task completed!", "result": 42}
 
 

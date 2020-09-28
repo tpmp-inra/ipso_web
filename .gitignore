@@ -131,3 +131,7 @@ ipso_web.db
 
 *.json
 generated_files/.treizh_abort
+*.bmp
+*.csv
+init_config.sh
+launch_all.sh
