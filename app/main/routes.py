@@ -1,11 +1,22 @@
 import os
 from datetime import datetime
+import time
 import logging
 import pathlib
 from datetime import datetime as dt
 
 from alembic import script
-from flask import render_template, flash, redirect, url_for, request, g, session, jsonify
+from flask import (
+    render_template,
+    flash,
+    redirect,
+    url_for,
+    request,
+    g,
+    session,
+    jsonify,
+    Response,
+)
 from flask_login import current_user, login_required
 from flask_babel import _, get_locale
 from celery.task.control import revoke
@@ -27,6 +38,8 @@ from app.funs import (
     long_task,
     get_process_info,
     get_abort_file_path,
+    prepare_process_muncher,
+    generate_annotation_csv,
 )
 from app.auth.funs import role_required
 
@@ -176,7 +189,73 @@ def execute():
         template_name_or_list="execute.html",
         launch_info=get_process_info(data),
         back_link="/revoke_queue",
+        use_redis=False,
     )
+
+
+@bp.route("/execute_task")
+@login_required
+def execute_task():
+    abort_path = get_abort_file_path(current_user.username)
+    if os.path.isfile(abort_path):
+        os.remove(abort_path)
+
+    launch_conf = get_launch_configuration(current_user.username)
+
+    def abort_callback():
+        return os.path.isfile(abort_path)
+
+    def wrapper():
+        yield f'data: {{"header": "Building pipeline processor..."}}\n\n'
+
+        data = prepare_process_muncher(None, abort_callback, **launch_conf)
+
+        pp = data["pipeline_processor"]
+        output_folder = data["output_folder"]
+
+        time.sleep(0.1)
+        yield f'data: {{"header": "Preparing images..."}}\n\n'
+        for data in pp.prepare_groups(
+            launch_conf["series_id_time_delta"],
+            yield_mode=True,
+        ):
+            yield f'data: {{"current":"{data["step"] + 1}","total":"{data["total"]}"}}\n\n'
+        groups_to_process = pp.groups_to_process
+
+        # Generate annotation CSV
+        if launch_conf["build_annotation_csv"]:
+            time.sleep(0.1)
+            yield f'data: {{"header": "Generating DI CSV..."}}\n\n'
+            generate_annotation_csv(
+                pipeline_processor=pp,
+                groups_to_process=groups_to_process,
+                output_folder=output_folder,
+                di_filename=os.path.join(
+                    output_folder,
+                    f"{launch_conf['csv_file_name']}_diseaseindex.csv",
+                ),
+            )
+
+        time.sleep(0.1)
+        yield f'data: {{"header": "Analyzing images..."}}\n\n'
+        for data in pp.process_groups(groups_list=groups_to_process, yield_mode=True):
+            yield f'data: {{"current":"{data["step"] + 1}","total":"{data["total"]}"}}\n\n'
+
+        if os.path.isfile(abort_path):
+            time.sleep(0.1)
+            yield f'data: {{"header": "User abort", "close": "true"}}\n\n'
+        else:
+            time.sleep(0.1)
+            yield f'data: {{"header": "Merging data..."}}\n\n'
+            for data in pp.merge_result_files(
+                csv_file_name=launch_conf["csv_file_name"] + ".csv",
+                yield_mode=True,
+            ):
+                yield f'data: {{"current":"{data["step"] + 1}","total":"{data["total"]}"}}\n\n'
+            time.sleep(0.1)
+            yield f'data: {{"header": "42", "close": "true"}}\n\n'
+
+    return Response(wrapper(), mimetype="text/event-stream")
 
 
 @bp.route("/user/<username>")
