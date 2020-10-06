@@ -9,7 +9,7 @@
         <hr>        
     {% else %}
         No process information
-    {% endif %}    
+    {% endif %}
     {% include '_progress_div.html' %}
 {% endblock %}
 
@@ -17,57 +17,35 @@
     {{ super() }}
     <script src="//cdnjs.cloudflare.com/ajax/libs/nanobar/0.2.1/nanobar.min.js"></script>
     <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
-    <script src="static/js/progress_handler.js"></script>
-    <script>        
-        function start_long_task() {
-            // add task status elements
-            $('#progress-header').text("Executing jobs");
-            $('#back-cancel').text("< Back, cancels task in progress");
-            document.getElementById("start-bg-job").className = ("btn btn-primary disabled");
-
-            // send ajax POST request to start background job
-            $.ajax({
-                type: 'POST',
-                url: '/init_queue',
-                success: function (data, status, request) {
-                    status_url = request.getResponseHeader('Location');
-                    update_progress(status_url);
-                },
-                error: function () {
-                    alert('Unexpected error');
-                }
+    {% if use_redis == 'True' %}
+        <script src="static/js/progress_handler.js"></script>
+        <script>
+            $(function() {
+                $('#start-bg-job').click(start_long_task);
             });
-        }
-
-        function update_progress(status_url) {
-            // send GET request to status URL
-            $.getJSON(status_url, function (data) {
-                // update UI
-                if ('current' in data) {
-                    percent = parseInt(data.current * 100 / data.total);
-                    pb = document.getElementById("progress-bar").style.width = percent + "%";
-                    document.getElementById("progress-label").innerHTML = percent + '% - ' + data['current'] + '/' + data['total'];
-                }
-                if (data.state != 'PENDING' && data.state != 'PROGRESS') {
-                    if ('result' in data) {
-                        // show result
-                        $('#progress-header').text('Result: ' + data.result);
-                    } else {
-                        // something unexpected happened
-                        $('#progress-header').text('Result: ' + data.state);
+        </script>
+    {% else %}
+        <script>
+            function execute_task() {
+                var source = new EventSource("/execute_task");
+                source.onmessage = function(event) {
+                    var data = JSON.parse(event.data);
+                    if ('current' in data) {
+                        percent = parseInt(data.current * 100 / data.total);
+                        pb = document.getElementById("progress-bar").style.width = percent + "%";
+                        document.getElementById("progress-label").innerHTML = percent + '% - ' + data['current'] + '/' + data['total'];
                     }
-                    $('#back-cancel').text("< Back");
-                    document.getElementById("start-bg-job").className = ("btn btn-primary active");
-                } else {
-                    // rerun in 2 seconds
-                    setTimeout(function () {
-                        update_progress(status_url);
-                    }, 2000);
+                    if ('header' in data) {
+                        $('#progress-header').text(data.header);
+                    }
+                    if ('close' in data) {
+                        source.close()
+                    }
                 }
+            }
+            $(function() {
+                $('#start-bg-job').click(execute_task);
             });
-        }
-        $(function() {
-            $('#start-bg-job').click(start_long_task);
-        });
-    </script>
+        </script>
+    {% endif %}        
 {% endblock %}

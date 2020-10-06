@@ -111,6 +111,83 @@ def set_launch_configuration(user_name: str, data: dict, **kwargs):
         json.dump(data, f, indent=2)
 
 
+def prepare_process_muncher(progress_callback, abort_callback, **kwargs):
+    output_folder = get_user_path(
+        user_name=kwargs["current_user"],
+        key="analysis_folder",
+        extra=kwargs["sub_folder_name"],
+    )
+    pp = PipelineProcessor(
+        dst_path=output_folder,
+        overwrite=kwargs["overwrite_existing"],
+        seed_output=False,
+        group_by_series=kwargs["generate_series_id"],
+        store_images=False,
+    )
+    pp.progress_callback = progress_callback
+    pp.abort_callback = abort_callback
+    pp.ensure_root_output_folder()
+    pp.accepted_files = kwargs.get("images", [])
+    pp.script = LoosePipeline.from_json(json_data=kwargs["script"])
+    if not pp.accepted_files:
+        return {
+            "current": 100,
+            "total": 100,
+            "status": "No images in task!",
+            "result": 42,
+        }
+
+    if IS_USE_MULTI_THREAD and "thread_count" in kwargs:
+        try:
+            pp.multi_thread = int(kwargs["thread_count"])
+        except:
+            pp.multi_thread = False
+    else:
+        pp.multi_thread = False
+
+    return {
+        "pipeline_processor": pp,
+        "output_folder": output_folder,
+    }
+
+
+def generate_annotation_csv(
+    pipeline_processor,
+    groups_to_process,
+    output_folder,
+    di_filename,
+):
+
+    try:
+        if pipeline_processor.options.group_by_series:
+            files, luids = map(list, zip(*groups_to_process))
+            wrappers = [
+                file_handler_factory(files[i])
+                for i in [luids.index(x) for x in set(luids)]
+            ]
+        else:
+            wrappers = [file_handler_factory(f) for f in groups_to_process]
+        pd.DataFrame.from_dict(
+            {
+                "plant": [i.plant for i in wrappers],
+                "date_time": [i.date_time for i in wrappers],
+                "disease_index": "",
+            }
+        ).sort_values(
+            by=["plant", "date_time"],
+            axis=0,
+            na_position="first",
+            ascending=True,
+        ).to_csv(
+            di_filename,
+            index=False,
+        )
+    except Exception as e:
+        logger.exception(f"Unable to build disease index file")
+    else:
+        logger.info("Built disease index file")
+
+
 @celery.task(bind=True)
 def long_task(self, **kwargs):
     def progress_callback(step, total):
@@ -126,47 +203,14 @@ def long_task(self, **kwargs):
     def abort_callback():
         return os.path.isfile(get_abort_file_path(kwargs["current_user"]))
 
-    output_folder = get_user_path(
-        user_name=kwargs["current_user"],
-        key="analysis_folder",
-        extra=kwargs["sub_folder_name"],
-    )
-    pp = PipelineProcessor(
-        dst_path=output_folder,
-        overwrite=kwargs["overwrite_existing"],
-        seed_output=False,
-        group_by_series=kwargs["generate_series_id"],
-        store_images=False,
-    )
-    # for image in kwargs.get("images", []):
+    data = prepare_process_muncher(progress_callback, abort_callback, **kwargs)
 
-    #     image.save(
-    #         os.path.join(
-    #             get_user_path(
-    #                 user_name=kwargs["current_user"],
-    #                 key="src_image_folder",
-    #                 extra=kwargs["sub_folder_name"],
-    #             ),
-    #             image.name,
-    #         )
-    #     )
-    pp.progress_callback = progress_callback
-    pp.abort_callback = abort_callback
-    pp.ensure_root_output_folder()
-    pp.accepted_files = kwargs.get("images", [])
-    pp.script = LoosePipeline.from_json(json_data=kwargs["script"])
-    if not pp.accepted_files:
-        return {
-            "current": 100,
-            "total": 100,
-            "status": "No images in task!",
-            "result": 42,
-        }
+    pp = data["pipeline_processor"]
+    output_folder = data["output_folder"]
     groups_to_process = pp.prepare_groups(kwargs["series_id_time_delta"])
 
     # Generate annotation CSV
     if kwargs["build_annotation_csv"]:
-        print("building csv")
         self.update_state(
             state="PROGRESS",
             meta={
@@ -175,38 +219,15 @@ def long_task(self, **kwargs):
                 "status": "Building annotation CSV file...",
             },
         )
-        try:
-            if pp.options.group_by_series:
-                files, luids = map(list, zip(*groups_to_process))
-                wrappers = [
-                    file_handler_factory(files[i])
-                    for i in [luids.index(x) for x in set(luids)]
-                ]
-            else:
-                wrappers = [file_handler_factory(f) for f in groups_to_process]
-            pd.DataFrame.from_dict(
-                {
-                    "plant": [i.plant for i in wrappers],
-                    "date_time": [i.date_time for i in wrappers],
-                    "disease_index": "",
-                }
-            ).sort_values(
-                by=["plant", "date_time"],
-                axis=0,
-                na_position="first",
-                ascending=True,
-            ).to_csv(
-                os.path.join(
-                    output_folder,
-                    f"{kwargs['csv_file_name']}_diseaseindex.csv",
-                ),
-                index=False,
-            )
-        except Exception as e:
-            logger.exception(f"Unable to build disease index file")
-        else:
-            logger.info("Built disease index file")
-
+        generate_annotation_csv(
+            pipeline_processor=pp,
+            groups_to_process=groups_to_process,
+            output_folder=output_folder,
+            di_filename=os.path.join(
+                output_folder,
+                f"{kwargs['csv_file_name']}_diseaseindex.csv",
+            ),
+        )
         self.update_state(
             state="PROGRESS",
             meta={
@@ -218,13 +239,6 @@ def long_task(self, **kwargs):
 
     groups_to_process_count = len(groups_to_process)
     if groups_to_process_count > 0:
-        if IS_USE_MULTI_THREAD and "thread_count" in kwargs:
-            try:
-                pp.multi_thread = int(kwargs["thread_count"])
-            except:
-                pp.multi_thread = False
-        else:
-            pp.multi_thread = False
         pp.process_groups(groups_list=groups_to_process)
 
     if os.path.isfile(get_abort_file_path(kwargs["current_user"])):
