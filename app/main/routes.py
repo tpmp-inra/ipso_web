@@ -237,7 +237,7 @@ def execute_task():
             )
 
         time.sleep(0.1)
-        yield f'data: {{"header": "Analyzing images..."}}\n\n'
+        yield f'data: {{"header": "Analyzing images...","current":"0","total":"1"}}\n\n'
         for data in pp.process_groups(groups_list=groups_to_process, yield_mode=True):
             yield f'data: {{"current":"{data["step"] + 1}","total":"{data["total"]}"}}\n\n'
 
@@ -246,7 +246,7 @@ def execute_task():
             yield f'data: {{"header": "User abort", "close": "true"}}\n\n'
         else:
             time.sleep(0.1)
-            yield f'data: {{"header": "Merging data..."}}\n\n'
+            yield f'data: {{"header": "Merging data...","current":"0","total":"1"}}\n\n'
             for data in pp.merge_result_files(
                 csv_file_name=launch_conf["csv_file_name"] + ".csv",
                 yield_mode=True,
