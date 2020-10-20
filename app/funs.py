@@ -123,6 +123,7 @@ def prepare_process_muncher(progress_callback, abort_callback, **kwargs):
         seed_output=False,
         group_by_series=kwargs["generate_series_id"],
         store_images=False,
+        database=None,
     )
     pp.progress_callback = progress_callback
     pp.abort_callback = abort_callback
