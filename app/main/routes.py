@@ -27,7 +27,7 @@ from app.main import bp
 from app.main.forms import (
     EmptyForm,
     EditProfileForm,
-    ProcessOptions,
+    StateProcessOptions,
     UploadForm,
     ReviewForm,
 )
@@ -130,13 +130,9 @@ def prepare():
         )
         return redirect(url_for("main.upload_state_or_pipeline"))
 
-    process_options_form = ProcessOptions(
+    process_options_form = StateProcessOptions(
         thread_count=data["thread_count"],
-        csv_file_name=data["csv_file_name"],
         overwrite_existing=data["overwrite_existing"],
-        sub_folder_name=data["sub_folder_name"]
-        if data["sub_folder_name"]
-        else f"{current_user.username}_{dt.now().strftime('%Y%b%d%H%M%S')}",
         build_annotation_csv=data["build_annotation_csv"],
         image_list=data["images"],
     )
@@ -148,9 +144,11 @@ def prepare():
         set_launch_configuration(
             user_name=current_user.username,
             data=data,
-            csv_file_name=process_options_form.csv_file_name.data,
+            csv_file_name=data["csv_file_name"],
             overwrite_existing=process_options_form.overwrite_existing.data,
-            sub_folder_name=process_options_form.sub_folder_name.data,
+            sub_folder_name=data["sub_folder_name"]
+            if data["sub_folder_name"]
+            else f"{current_user.username}_{dt.now().strftime('%Y%b%d%H%M%S')}",
             generate_series_id=process_options_form.generate_series_id.data,
             series_id_time_delta=process_options_form.series_id_time_delta.data,
             thread_count=process_options_form.thread_count.data,
@@ -215,10 +213,7 @@ def execute_task():
 
         time.sleep(0.1)
         yield f'data: {{"header": "Preparing images..."}}\n\n'
-        for data in pp.prepare_groups(
-            launch_conf["series_id_time_delta"],
-            yield_mode=True,
-        ):
+        for data in pp.yield_groups(launch_conf["series_id_time_delta"]):
             yield f'data: {{"current":"{data["step"] + 1}","total":"{data["total"]}"}}\n\n'
         groups_to_process = pp.groups_to_process
 
@@ -238,7 +233,7 @@ def execute_task():
 
         time.sleep(0.1)
         yield f'data: {{"header": "Analyzing images...","current":"0","total":"1"}}\n\n'
-        for data in pp.process_groups(groups_list=groups_to_process, yield_mode=True):
+        for data in pp.yield_process_groups(groups_list=groups_to_process):
             yield f'data: {{"current":"{data["step"] + 1}","total":"{data["total"]}"}}\n\n'
 
         if os.path.isfile(abort_path):
@@ -247,9 +242,8 @@ def execute_task():
         else:
             time.sleep(0.1)
             yield f'data: {{"header": "Merging data...","current":"0","total":"1"}}\n\n'
-            for data in pp.merge_result_files(
-                csv_file_name=launch_conf["csv_file_name"] + ".csv",
-                yield_mode=True,
+            for data in pp.yield_merge_result_files(
+                csv_file_name=launch_conf["csv_file_name"] + ".csv"
             ):
                 yield f'data: {{"current":"{data["step"] + 1}","total":"{data["total"]}"}}\n\n'
             time.sleep(0.1)

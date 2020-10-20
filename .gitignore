@@ -135,3 +135,4 @@ generated_files/.treizh_abort
 *.csv
 init_config.sh
 launch_all.sh
+app/ipapi/database/db_connect_data.py
