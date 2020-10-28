@@ -2,6 +2,10 @@ import os
 import json
 import logging
 
+import pandas as pd
+
+import plotly.express as px
+
 logger = logging.getLogger(__name__)
 
 from flask import flash
@@ -15,9 +19,6 @@ from ipapi.base.ipt_loose_pipeline import LoosePipeline
 from ipapi.file_handlers.fh_base import file_handler_factory
 from ipapi.database.base import DbInfo
 from ipapi.database.db_factory import db_info_to_database
-
-
-IS_USE_MULTI_THREAD = False
 
 
 def get_user_path(user_name: str, key: str, extra: str = ""):
@@ -127,7 +128,7 @@ def prepare_process_muncher(progress_callback, abort_callback, **kwargs):
     pp.progress_callback = progress_callback
     pp.abort_callback = abort_callback
     pp.ensure_root_output_folder()
-    pp.accepted_files = pp.grab_files_from_data_base(experiment=dbi.display_name)
+    pp.grab_files_from_data_base(experiment=dbi.display_name.lower())
     pp.script = LoosePipeline.from_json(json_data=kwargs["script"])
     if not pp.accepted_files:
         return {
@@ -137,12 +138,9 @@ def prepare_process_muncher(progress_callback, abort_callback, **kwargs):
             "result": 42,
         }
 
-    if IS_USE_MULTI_THREAD and "thread_count" in kwargs:
-        try:
-            pp.multi_thread = int(kwargs["thread_count"])
-        except:
-            pp.multi_thread = False
-    else:
+    try:
+        pp.multi_thread = int(kwargs.get("thread_count", 1))
+    except:
         pp.multi_thread = False
 
     return {
@@ -251,6 +249,10 @@ def long_task(self, **kwargs):
 
 
 def get_process_info(data: dict) -> dict:
+    dbi = DbInfo.from_json(json_data=json.loads(data["database_info"].replace("'", '"')))
+    tmp_db = db_info_to_database(dbi)
+    tmp_db.connect()
+    count, desc_lines, fig = get_experiment_digest(tmp_db.dataframe)
     return {
         "pipeline_title": data.get("script", {}).get("title", ""),
         "pipeline_desc": data.get("script", {}).get("description", ""),
@@ -260,4 +262,43 @@ def get_process_info(data: dict) -> dict:
         "series_id_time_delta": data.get("series_id_time_delta", ""),
         "thread_count": data.get("thread_count", ""),
         "build_annotation_csv": data.get("build_annotation_csv", ""),
+        "experiment": dbi.display_name,
+        "obs_count": count,
+        "desc_lines": desc_lines,
+        "fig": fig,
     }
+
+
+def get_experiment_digest(experiment: pd.DataFrame):
+    df = experiment.copy()
+
+    if df.shape[0] > 0:
+        temp_date_time = pd.DatetimeIndex(df["date_time"])
+        df.insert(loc=4, column="time", value=temp_date_time.time)
+        df.insert(loc=4, column="date", value=temp_date_time.date)
+
+        df["hour"] = pd.to_numeric(
+            df.time.astype("str").str.split(pat=":", expand=True).iloc[:, 0]
+        ).to_list()
+
+        count = df.shape[0]
+
+        desc_lines = {
+            f"{col.replace('_', ' ').capitalize()}s": f"{len(list(df[col].unique()))} unique"
+            for col in ["Plant", "date", "Camera", "view_option"]
+        }
+
+        fig = px.density_heatmap(
+            title="Observations per day and hour",
+            data_frame=df,
+            x="date",
+            y="hour",
+            height=400,
+        )
+        fig.update_yaxes(tick0=-0.5)
+    else:
+        count = 0
+        desc_lines = {col: "None" for col in ["plant", "date", "camera", "view_option"]}
+        fig = None
+
+    return count, desc_lines, fig

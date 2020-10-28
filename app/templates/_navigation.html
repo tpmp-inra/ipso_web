@@ -1,0 +1,27 @@
+<form 
+    class="form-inline center-block" 
+    action={{ back_link }} 
+    method="POST"
+>
+    <button id="back-cancel" class="btn btn-{{ backward_type }}", style="float: left;">
+        {{ back_text }}
+    </button>
+</form>
+
+{% if forward_state == "enabled" %}
+    <form 
+        class="form-inline center-block" 
+        action={{ forward_link }} 
+        method="POST"
+    >
+        <button id="back-cancel" class="btn btn-{{ forward_type }}", style="float: right;">
+            {{ forward_text }}
+        </button>
+    </form>
+{% else %}
+    <form class="form-inline center-block" method="POST">
+        <button id="back-cancel" class="btn btn-primary" disabled, style="float: right;">
+            {{ forward_text }}
+        </button>
+    </form>
+{% endif %}

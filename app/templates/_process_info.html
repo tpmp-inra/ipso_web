@@ -28,13 +28,37 @@
             <td><b>Build annotation ready CSV</b></td>
             <td>{{ launch_info["build_annotation_csv"] }}</td> 
         </tr>
-        <tr>
-            <td><b>Images</b></td>
-            <td>{{ launch_info["images"] }}</td> 
-        </tr>
-        <tr>
-            <td><b></b></td>
-            <td>{{ launch_info[""] }}</td> 
-        </tr>
     </tbody>
 </table>
+
+<table style="width:100%">
+    <colgroup>
+        <col span="1" style="width: 40%;">
+        <col span="1" style="width: 60%;">
+    </colgroup>
+    <tbody>
+        <tr style="border-bottom:1px solid black">
+            <td><b><h3>Experiment</h3></b></td>
+            <td>{{ launch_info["experiment"] }}</td> 
+        </tr>
+        <tr>
+            <td><b>Observation count</b></td>
+            <td>{{ launch_info["obs_count"] }}</td> 
+        </tr>
+        {% for k, v in launch_info["desc_lines"].items() %}
+            <tr>
+                <td><b>{{ k }}</b></td>
+                <td>{{ v }}</td> 
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="chart" id="exp_overvew" style="margin-left:auto;margin-right:auto">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.6/d3.min.js"></script>
+    <script>
+        var graphs = {{plot | safe}};
+        Plotly.plot('exp_overvew',graphs,{});
+    </script>
+</div>

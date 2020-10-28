@@ -1,6 +1,5 @@
 <div id="progress-div">
-    <h1>Process log</h1>
-    <h3 id=progress-header>Waiting... Press "<i>Execute queue</i>" to start</h3>
+    <h3 id=progress-header>Waiting... Press "<i>Launch process</i>" to start</h3>
     <div id=progress-label>.../...</div>
     <br>
     <div class="progress">
@@ -16,16 +15,17 @@
         </div>
     </div>
     <br>
+    <hr>
     <form 
         class="form-inline center-block" 
         action={{ back_link }} 
         method="POST"
     >
-        <button id="back-cancel" class="btn btn-primary", style="float: left;">
-            < Back
+        <button id="back-cancel" class="btn btn-warning", style="float: left;">
+            < Back (will cancel process in progress)
         </button>
     </form>
-    <button id="start-bg-job" class="btn btn-primary", style="float: right;">
-        Execute queue
+    <button id="start-bg-job" class="btn btn-success", style="float: right;">
+        Launch process
     </button>    
 </div>

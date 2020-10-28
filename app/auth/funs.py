@@ -5,22 +5,21 @@ from flask_login import current_user
 from flask import render_template, url_for
 
 
-def role_required(required_role: Union[str, List] = ""):
+def check_user_roles(
+    required_roles: List = [],
+    excluded_roles: List = [],
+):
     def decorator(function):
         @wraps(function)
         def wrapped_function(*args, **kwargs):
             if current_user is None:
                 return render_template("errors/403.html"), 403
-            if not required_role:
+
+            user_roles = set(current_user.get_roles_as_list())
+            if (
+                not required_roles or user_roles.intersection(required_roles)
+            ) and not user_roles.intersection(excluded_roles):
                 return function(*args, **kwargs)
-            user_roles = current_user.get_roles_as_list()
-            if isinstance(required_role, str) and (required_role in user_roles):
-                return function(*args, **kwargs)
-            elif isinstance(required_role, list):
-                for rq_subset in required_role:
-                    if rq_subset in user_roles:
-                        return required_role in user_roles
-                return render_template("errors/403.html"), 403
             else:
                 return render_template("errors/403.html"), 403
 

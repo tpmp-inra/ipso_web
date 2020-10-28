@@ -1,24 +1,15 @@
 {% extends "base.html" %}
 {% import 'bootstrap/wtf.html' as wtf %}
 
-{% block app_content %}
+{% block app_content %}    
     {% if launch_info %}
         <h1>Process information</h1>
         {% include '_process_info.html' %}
         <br>
-        <hr>
     {% else %}
-        <h1>Nothing to do, ga back to start?</h1>        
+        No process information
     {% endif %}
-    <form 
-        class="form-inline center-block" 
-        action="/review" 
-        method="POST"
-    >
-        {{ review_form.hidden_tag() }}
-        <br>
-        {{ review_form.go_back(class_="btn btn-primary", style="float: left;") }}
-        {{ review_form.execute(class_="btn btn-primary", style="float: right;") }}
-    </form>
-
+    
+    <hr>
+    {% include '_navigation.html' %}
 {% endblock %}

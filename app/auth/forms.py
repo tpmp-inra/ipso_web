@@ -28,7 +28,6 @@ class RegistrationForm(FlaskForm):
             raise ValidationError(_("Please use a different username."))
 
     def validate_email(self, email):
-        print(email)
         if "inrae.fr" not in email.data:
             raise ValidationError(
                 _("Sorry, att the moment IPSO web is only accessible to INRAE users")

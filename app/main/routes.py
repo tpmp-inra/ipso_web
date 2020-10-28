@@ -4,8 +4,11 @@ import time
 import logging
 import pathlib
 from datetime import datetime as dt
+import multiprocessing as mp
+import json
 
-from alembic import script
+import plotly
+
 from flask import (
     render_template,
     flash,
@@ -19,9 +22,8 @@ from flask import (
 )
 from flask_login import current_user, login_required
 from flask_babel import _, get_locale
-from celery.task.control import revoke
 
-from app import db, jsons, Config
+from app import db, jsons
 from app.models import User
 from app.main import bp
 from app.main.forms import (
@@ -29,7 +31,6 @@ from app.main.forms import (
     EditProfileForm,
     StateProcessOptions,
     UploadForm,
-    ReviewForm,
 )
 from app.funs import (
     get_source_configuration,
@@ -41,7 +42,7 @@ from app.funs import (
     prepare_process_muncher,
     generate_annotation_csv,
 )
-from app.auth.funs import role_required
+from app.auth.funs import check_user_roles
 
 from ipapi.database.db_initializer import available_db_dicts, DbType
 
@@ -65,26 +66,8 @@ def index():
     )
 
 
-@bp.route("/review", methods=["GET", "POST"])
-@login_required
-def review():
-    review_form = ReviewForm()
-    if review_form.validate_on_submit() and review_form.go_back.data:
-        return redirect(url_for("main.prepare"))
-    if review_form.validate_on_submit() and review_form.execute.data:
-        return redirect(url_for("main.execute"))
-
-    data = get_launch_configuration(current_user.username)
-    if not data:
-        flash("No launch configuration data available", category="error")
-    return render_template(
-        template_name_or_list="review.html",
-        review_form=review_form,
-        launch_info=get_process_info(data),
-    )
-
-
 @bp.route("/select_pipeline_and_database", methods=["GET", "POST"])
+@check_user_roles(excluded_roles=["pending"])
 @login_required
 def select_pipeline_and_database():
     upload_form = UploadForm()
@@ -109,8 +92,8 @@ def select_pipeline_and_database():
                 _("Unable to load file, only IPSO Phen files are allowed"),
                 category="error",
             )
-            del session["pipeline"]
-            del session["loaded_file_name"]
+            session.pop("pipeline", None)
+            session.pop("loaded_file_name", None)
             logger.exception(repr(e))
         else:
             return redirect(url_for("main.prepare"))
@@ -149,8 +132,11 @@ def prepare():
         (dbi.to_json(), dbi.display_name) for dbi in available_db_dicts[db_selector]
     ]
 
+    process_options_form.thread_count.choices = [
+        (str(i), str(i)) for i in range(1, mp.cpu_count())
+    ]
+
     if process_options_form.validate_on_submit() and process_options_form.review.data:
-        print(process_options_form.experiment.data)
         set_launch_configuration(
             user_name=current_user.username,
             data=data,
@@ -166,7 +152,7 @@ def prepare():
             current_user=current_user.username,
             database_info=process_options_form.experiment.data,
         )
-        return redirect(url_for("main.execute"))
+        return redirect(url_for("main.review"))
     elif process_options_form.validate_on_submit() and process_options_form.back.data:
         return redirect(url_for("main.select_pipeline_and_database"))
     else:
@@ -177,15 +163,39 @@ def prepare():
         )
 
 
-@bp.route("/execute", methods=["GET", "POST"])
+@bp.route("/review", methods=["GET", "POST"])
 @login_required
-def execute():
+def review():
     data = get_launch_configuration(current_user.username)
     if not data:
         flash("No launch configuration data available", category="error")
+
+    launch_info = get_process_info(data)
+    plot = json.dumps(
+        launch_info.pop("fig"),
+        cls=plotly.utils.PlotlyJSONEncoder,
+    )
+
+    return render_template(
+        template_name_or_list="review.html",
+        launch_info=launch_info,
+        back_link="/prepare",
+        back_text="< Back",
+        back_type="primary",
+        forward_text="Execute >",
+        forward_link="/execute",
+        forward_type="primary",
+        forward_state="enabled" if data else "disabled",
+        use_redis=False,
+        plot=plot,
+    )
+
+
+@bp.route("/execute", methods=["GET", "POST"])
+@login_required
+def execute():
     return render_template(
         template_name_or_list="execute.html",
-        launch_info=get_process_info(data),
         back_link="/revoke_queue",
         use_redis=False,
     )
@@ -233,7 +243,7 @@ def execute_task():
 
         time.sleep(0.1)
         yield f'data: {{"header": "Analyzing images...","current":"0","total":"1"}}\n\n'
-        for data in pp.yield_process_groups(groups_list=groups_to_process):
+        for data in pp.yield_test_process_groups(groups_list=groups_to_process):
             yield f'data: {{"current":"{data["step"] + 1}","total":"{data["total"]}"}}\n\n'
 
         if os.path.isfile(abort_path):
@@ -284,7 +294,7 @@ def edit_profile():
 @login_required
 def revoke_queue():
     pathlib.Path(get_abort_file_path(current_user.username)).touch()
-    return redirect(url_for("main.prepare"))
+    return redirect(url_for("main.review"))
 
 
 @bp.route("/init_queue", methods=["POST"])

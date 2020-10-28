@@ -2,14 +2,7 @@
 {% import 'bootstrap/wtf.html' as wtf %}
 
 {% block app_content %}    
-    {% if launch_info %}
-        <h1>Process information</h1>
-        {% include '_process_info.html' %}
-        <br>
-        <hr>        
-    {% else %}
-        No process information
-    {% endif %}
+    <h1>Process execution</h1>
     {% include '_progress_div.html' %}
 {% endblock %}
 
@@ -17,6 +10,7 @@
     {{ super() }}
     <script src="//cdnjs.cloudflare.com/ajax/libs/nanobar/0.2.1/nanobar.min.js"></script>
     <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+ 
     {% if use_redis == 'True' %}
         <script src="static/js/progress_handler.js"></script>
         <script>

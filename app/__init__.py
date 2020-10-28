@@ -1,7 +1,5 @@
 import logging
-from logging.handlers import SMTPHandler, RotatingFileHandler
 import os
-import re
 
 from flask import Flask, request, current_app
 from flask_sqlalchemy import SQLAlchemy
@@ -15,16 +13,6 @@ from flask_uploads import configure_uploads, UploadSet, DATA
 from flask_caching import Cache
 
 from celery import Celery
-
-reg = re.compile("export (?P<name>\w+)(\=(?P<value>.+))*")
-for line in open("./init_config.sh"):
-    m = reg.match(line)
-    if m:
-        name = m.group("name")
-        value = ""
-        if m.group("value"):
-            value = m.group("value")
-        os.putenv(name, value)
 
 from config import Config
 
