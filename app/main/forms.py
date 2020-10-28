@@ -11,6 +11,7 @@ from wtforms import (
     IntegerField,
     BooleanField,
     MultipleFileField,
+    SelectField,
 )
 from wtforms.validators import (
     ValidationError,
@@ -27,9 +28,18 @@ from app.models import User
 class UploadForm(FlaskForm):
     input_file = FileField("")
     upload_data = SubmitField("Upload data")
+    database = SelectField(
+        label="Database",
+        choices=[("phenoserre", "Phenoserre"), ("phenopsis", "Phenopsis")],
+        validate_choice=False,
+    )
 
 
 class StateProcessOptions(FlaskForm):
+    experiment = SelectField(
+        label="Experiment",
+        validate_choice=False,
+    )
     thread_count = IntegerField(
         label=f"Thread count from 1 to {mp.cpu_count() - 1}",
         validators=[NumberRange(min=0, max=mp.cpu_count() - 1)],
@@ -39,11 +49,6 @@ class StateProcessOptions(FlaskForm):
     build_annotation_csv = BooleanField(label=_("Build annotation CSV"))
     generate_series_id = BooleanField(label=_("Generate series IDs"))
     series_id_time_delta = IntegerField(label="Max delta for series Id", default=20)
-
-    image_list = MultipleFileField(
-        label="Images to analyse, can be paths or file containing list of paths",
-        default=None,
-    )
 
     back = SubmitField("< Back")
     review = SubmitField("Review & execute >")

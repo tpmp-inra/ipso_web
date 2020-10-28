@@ -43,6 +43,8 @@ from app.funs import (
 )
 from app.auth.funs import role_required
 
+from ipapi.database.db_initializer import available_db_dicts, DbType
+
 logger = logging.getLogger(__name__)
 
 
@@ -82,9 +84,9 @@ def review():
     )
 
 
-@bp.route("/upload_state_or_pipeline", methods=["GET", "POST"])
+@bp.route("/select_pipeline_and_database", methods=["GET", "POST"])
 @login_required
-def upload_state_or_pipeline():
+def select_pipeline_and_database():
     upload_form = UploadForm()
     if upload_form.validate_on_submit() and upload_form.upload_data.data:
         try:
@@ -97,23 +99,24 @@ def upload_state_or_pipeline():
             except Exception as e:
                 flash(repr(e), category="error")
                 logger.exception(repr(e))
-            session["script_or_stored_state"] = jsons.save(
+            session["pipeline"] = jsons.save(
                 storage=data,
                 name=target_file,
             )
+            session["database"] = upload_form.database.data
         except Exception as e:
             flash(
                 _("Unable to load file, only IPSO Phen files are allowed"),
                 category="error",
             )
-            del session["script_or_stored_state"]
+            del session["pipeline"]
             del session["loaded_file_name"]
             logger.exception(repr(e))
         else:
             return redirect(url_for("main.prepare"))
 
     return render_template(
-        "upload_state_or_pipeline.html",
+        "select_pipeline_and_database.html",
         title=_("Upload"),
         upload_form=upload_form,
     )
@@ -122,25 +125,32 @@ def upload_state_or_pipeline():
 @bp.route("/prepare", methods=["GET", "POST"])
 @login_required
 def prepare():
-    data = get_source_configuration(jsons.path(session.get("script_or_stored_state", "")))
+    data = get_source_configuration(jsons.path(session.get("pipeline", "")))
     if data is None:
         flash(
             _("Please load a pipeline or a stored state before proceeding"),
             category="error",
         )
-        return redirect(url_for("main.upload_state_or_pipeline"))
+        return redirect(url_for("main.select_pipeline_and_database"))
 
     process_options_form = StateProcessOptions(
         thread_count=data["thread_count"],
         overwrite_existing=data["overwrite_existing"],
         build_annotation_csv=data["build_annotation_csv"],
-        image_list=data["images"],
     )
+    db_selected = session.get("database", "")
+    if db_selected == "phenoserre":
+        db_selector = DbType.PHENOSERRE
+    elif db_selected == "phenopsis":
+        db_selector = DbType.PHENOPSIS
+    else:
+        db_selector = DbType.CUSTOM_DB
+    process_options_form.experiment.choices = [
+        (dbi.to_json(), dbi.display_name) for dbi in available_db_dicts[db_selector]
+    ]
 
     if process_options_form.validate_on_submit() and process_options_form.review.data:
-        # pics = request.files.getlist(process_options_form.image_list.name)
-        for pic in process_options_form.image_list.data:
-            print(type(pic))
+        print(process_options_form.experiment.data)
         set_launch_configuration(
             user_name=current_user.username,
             data=data,
@@ -153,27 +163,17 @@ def prepare():
             series_id_time_delta=process_options_form.series_id_time_delta.data,
             thread_count=process_options_form.thread_count.data,
             build_annotation_csv=process_options_form.build_annotation_csv.data,
-            images=process_options_form.image_list.data
-            if len(data["images"]) <= 0
-            else data["images"],
             current_user=current_user.username,
+            database_info=process_options_form.experiment.data,
         )
         return redirect(url_for("main.execute"))
     elif process_options_form.validate_on_submit() and process_options_form.back.data:
-        return redirect(url_for("main.upload_state_or_pipeline"))
+        return redirect(url_for("main.select_pipeline_and_database"))
     else:
-        if len(data["images"]) > 0:
-            images = {
-                "excerpt": "\n".join(data["images"][:10]),
-                "excess": len(data["images"]) - 10 if len(data["images"]) > 10 else 0,
-            }
-        else:
-            images = None
         return render_template(
             "prepare.html",
             title=_("Launch"),
             process_options_form=process_options_form,
-            images=images,
         )
 
 

@@ -3,10 +3,15 @@
 
 {% block app_content %}
     {% if upload_form %}
-        <h2>Select a pipeline or a stored state</h2>        
+        <h2>Select a database and a pipeline</h2>        
         <div class="row">
             <form class="form-inline center-block" method="POST" enctype="multipart/form-data">
-                {{ upload_form.hidden_tag() }}
+                {{ upload_form.hidden_tag() }}                
+                {{ wtf.form_field(upload_form.database) }}
+
+                <br>
+                <br>
+                
                 <div class="input-group">
                     <label id="browsebutton" >
                         {{ upload_form.input_file(id="my-file-selector", class_="btn btn-default btn-lg") }}
