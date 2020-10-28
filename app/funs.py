@@ -13,6 +13,8 @@ import pandas as pd
 from ipapi.base.pipeline_processor import PipelineProcessor
 from ipapi.base.ipt_loose_pipeline import LoosePipeline
 from ipapi.file_handlers.fh_base import file_handler_factory
+from ipapi.database.base import DbInfo
+from ipapi.database.db_factory import db_info_to_database
 
 
 IS_USE_MULTI_THREAD = False
@@ -52,12 +54,7 @@ def get_source_configuration(url: str):
         return None
     with open(url, "r") as f:
         data = json.load(f)
-    if "script" in data:  # All required data is present
-        if not "build_annotation_csv" in data:
-            data["build_annotation_csv"] = False
-        data["standalone"] = True
-        return data
-    elif "Pipeline" in data:  # Additional data is required
+    if "Pipeline" in data:
         return dict(
             csv_file_name="data.csv",
             overwrite_existing=False,
@@ -66,9 +63,7 @@ def get_source_configuration(url: str):
             series_id_time_delta=0,
             thread_count=1,
             build_annotation_csv=False,
-            standalone=False,
             sub_folder_name="",
-            images=[],
         )
     else:
         return None
@@ -102,9 +97,10 @@ def set_launch_configuration(user_name: str, data: dict, **kwargs):
     data["series_id_time_delta"] = kwargs.get("series_id_time_delta")
     data["thread_count"] = kwargs.get("thread_count")
     data["build_annotation_csv"] = kwargs.get("build_annotation_csv")
-    data["images"] = kwargs.get("images")
     data["current_user"] = kwargs.get("current_user")
+    data["database_info"] = kwargs.get("database_info")
     launch_conf_path = get_launch_config_path(user_name=user_name)
+
     if os.path.isfile(launch_conf_path):
         os.remove(launch_conf_path)
     with open(launch_conf_path, "w") as f:
@@ -117,18 +113,21 @@ def prepare_process_muncher(progress_callback, abort_callback, **kwargs):
         key="analysis_folder",
         extra=kwargs["sub_folder_name"],
     )
+    dbi = DbInfo.from_json(
+        json_data=json.loads(kwargs["database_info"].replace("'", '"'))
+    )
     pp = PipelineProcessor(
         dst_path=output_folder,
         overwrite=kwargs["overwrite_existing"],
         seed_output=False,
         group_by_series=kwargs["generate_series_id"],
         store_images=False,
-        database=None,
+        database=db_info_to_database(dbi),
     )
     pp.progress_callback = progress_callback
     pp.abort_callback = abort_callback
     pp.ensure_root_output_folder()
-    pp.accepted_files = kwargs.get("images", [])
+    pp.accepted_files = pp.grab_files_from_data_base(experiment=dbi.display_name)
     pp.script = LoosePipeline.from_json(json_data=kwargs["script"])
     if not pp.accepted_files:
         return {
@@ -261,5 +260,4 @@ def get_process_info(data: dict) -> dict:
         "series_id_time_delta": data.get("series_id_time_delta", ""),
         "thread_count": data.get("thread_count", ""),
         "build_annotation_csv": data.get("build_annotation_csv", ""),
-        "images": len(data.get("images", [])),
     }
