@@ -133,5 +133,6 @@ ipso_web.db
 generated_files/.treizh_abort
 *.bmp
 *.csv
+*.pkl
 launch_all.sh
 app/ipapi/database/db_connect_data.py

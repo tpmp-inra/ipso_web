@@ -36,13 +36,15 @@ def get_user_path(user_name: str, key: str, extra: str = ""):
         "analysis_folder": os.path.join(
             ".",
             "generated_files",
-            f"{user_name}_analysis_{extra}",
+            f"{user_name}_analysis",
+            extra,
             "",
         ),
         "src_image_folder": os.path.join(
             ".",
             "generated_files",
-            f"{user_name}_analysis_{extra}",
+            f"{user_name}_analysis",
+            extra,
             "src_images",
             "",
         ),
@@ -64,7 +66,6 @@ def get_source_configuration(url: str):
             series_id_time_delta=0,
             thread_count=1,
             build_annotation_csv=False,
-            sub_folder_name="",
         )
     else:
         return None
@@ -109,26 +110,30 @@ def set_launch_configuration(user_name: str, data: dict, **kwargs):
 
 
 def prepare_process_muncher(progress_callback, abort_callback, **kwargs):
-    output_folder = get_user_path(
-        user_name=kwargs["current_user"],
-        key="analysis_folder",
-        extra=kwargs["sub_folder_name"],
-    )
     dbi = DbInfo.from_json(
         json_data=json.loads(kwargs["database_info"].replace("'", '"'))
     )
+    output_folder = get_user_path(
+        user_name=kwargs["current_user"],
+        key="analysis_folder",
+        extra=dbi.display_name.lower(),
+    )
+    database = db_info_to_database(dbi)
     pp = PipelineProcessor(
         dst_path=output_folder,
         overwrite=kwargs["overwrite_existing"],
         seed_output=False,
         group_by_series=kwargs["generate_series_id"],
         store_images=False,
-        database=db_info_to_database(dbi),
+        database=database,
     )
     pp.progress_callback = progress_callback
     pp.abort_callback = abort_callback
     pp.ensure_root_output_folder()
-    pp.grab_files_from_data_base(experiment=dbi.display_name.lower())
+    pp.grab_files_from_data_base(
+        experiment=dbi.display_name.lower(),
+        **database.main_selector,
+    )
     pp.script = LoosePipeline.from_json(json_data=kwargs["script"])
     if not pp.accepted_files:
         return {

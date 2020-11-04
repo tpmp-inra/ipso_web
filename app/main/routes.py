@@ -142,9 +142,6 @@ def prepare():
             data=data,
             csv_file_name=data["csv_file_name"],
             overwrite_existing=process_options_form.overwrite_existing.data,
-            sub_folder_name=data["sub_folder_name"]
-            if data["sub_folder_name"]
-            else f"{current_user.username}_{dt.now().strftime('%Y%b%d%H%M%S')}",
             generate_series_id=process_options_form.generate_series_id.data,
             series_id_time_delta=process_options_form.series_id_time_delta.data,
             thread_count=process_options_form.thread_count.data,
@@ -243,7 +240,7 @@ def execute_task():
 
         time.sleep(0.1)
         yield f'data: {{"header": "Analyzing images...","current":"0","total":"1"}}\n\n'
-        for data in pp.yield_test_process_groups(groups_list=groups_to_process):
+        for data in pp.yield_process_groups(groups_list=groups_to_process):
             yield f'data: {{"current":"{data["step"] + 1}","total":"{data["total"]}"}}\n\n'
 
         if os.path.isfile(abort_path):
