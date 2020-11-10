@@ -136,3 +136,4 @@ generated_files/
 *.pkl
 launch_all.sh
 app/ipapi/database/db_connect_data.py
+cache
