@@ -3,7 +3,49 @@
 
 {% block app_content %}    
     <h1>Process execution</h1>
-    {% include '_progress_div.html' %}
+    <div id="progress-div">
+        <h3 id=progress-header>Waiting... Press "<i>Launch process</i>" to start</h3>
+        <div id=progress-label>.../...</div>
+        <br>
+        <div class="progress">
+            <div 
+                class="progress-bar" 
+                id="progress-bar"
+                role="progressbar" 
+                style="width: 0%;" 
+                aria-valuenow="0" 
+                aria-valuemin="0" 
+                aria-valuemax="100"
+            >
+            </div>
+        </div>
+        <br>
+        {# <input class="form-check-input" type="checkbox" value="" id="show-image">
+        <label class="form-check-label" for="show-image">
+            Show output images
+        </label>
+        <br>
+        <div class="text-center">
+            <img 
+                src="" 
+                alt="Responsive image"
+                id="result-image"
+            />
+        </div> #}
+        <hr>
+        <form 
+            class="form-inline center-block" 
+            action={{ back_link }} 
+            method="POST"
+        >
+            <button id="back-cancel" class="btn btn-warning", style="float: left;">
+                < Back (will cancel process in progress)
+            </button>
+        </form>
+        <button id="start-bg-job" class="btn btn-success", style="float: right;">
+            Launch process
+        </button>    
+    </div>
 {% endblock %}
 
 {% block scripts %}
@@ -24,17 +66,25 @@
                 var source = new EventSource("/execute_task");
                 source.onmessage = function(event) {
                     var data = JSON.parse(event.data);
-                    if ('current' in data) {
-                        percent = parseInt(data.current * 100 / data.total);
-                        pb = document.getElementById("progress-bar").style.width = percent + "%";
-                        document.getElementById("progress-label").innerHTML = percent + '% - ' + data['current'] + '/' + data['total'];
+                    if ('step' in data) {
+                        percent = parseInt(data.step * 100 / data.total);
+                        pb = document.getElementById("progress-bar").style.width = percent + "%";                        
+                    }
+                    if ('message' in data) {
+                        document.getElementById("progress-label").innerHTML = data['message'];
                     }
                     if ('header' in data) {
                         $('#progress-header').text(data.header);
                     }
+                    {# var show_image = document.getElementById("show-image");
+                    if (show_image.checked) {
+                        document.getElementById("result-image").src = "{{url_for('static', filename='testing_pipeline.gif')}}" ;
+                    } else {
+                        document.getElementById("result-image").src = ""
+                    }
                     if ('close' in data) {
                         source.close()
-                    }
+                    } #}
                 }
             }
             $(function() {

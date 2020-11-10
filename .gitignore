@@ -130,7 +130,7 @@ dmypy.json
 ipso_web.db
 
 *.json
-generated_files/.treizh_abort
+generated_files/
 *.bmp
 *.csv
 *.pkl

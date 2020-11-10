@@ -241,7 +241,10 @@ def execute_task():
         time.sleep(0.1)
         yield f'data: {{"header": "Analyzing images...","current":"0","total":"1"}}\n\n'
         for data in pp.yield_process_groups(groups_list=groups_to_process):
-            yield f'data: {{"current":"{data["step"] + 1}","total":"{data["total"]}"}}\n\n'
+            # d = f'data: {{"current":"{data["step"] + 1}","total":"{data["total"]}"}}\n\n'
+            yield "data: " + "{" + ",".join(
+                {f'"{k}":"{v}"' for k, v in data.items()}
+            ) + "}\n\n"
 
         if os.path.isfile(abort_path):
             time.sleep(0.1)
