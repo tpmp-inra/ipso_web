@@ -13,7 +13,7 @@ class IptCleanMaskBackward(IptBase):
     def build_params(self):
         self.add_enabled_checkbox()
         self.add_text_input(
-            name="path",
+            name="mask_search_path",
             desc="Target folder",
             default_value="",
             hint="Can be overridden at process call",
@@ -31,18 +31,18 @@ class IptCleanMaskBackward(IptBase):
                 img = wrapper.current_image
                 mask = self.get_mask()
                 if mask is None:
-                    wrapper.error_holder.add_error(
-                        f"FAIL {self.name}: mask must be initialized", target_logger=logger
+                    logger.error(
+                        f"FAIL {self.name}: mask must be initialized",
                     )
                     return
 
                 # Retrieve previous mask from database
                 last_mask = None
-                msk_path = os.path.join(self.get_value_of("path"), "masks", "")
+                msk_path = os.path.join(
+                    self.get_value_of("mask_search_path"), "masks", ""
+                )
                 if not os.path.isdir(msk_path):
-                    wrapper.error_holder.add_error(
-                        f"Warning {self.name}: no previous mask", target_logger=logger
-                    )
+                    logger.error(f"Warning {self.name}: no previous mask")
                     self.result = mask
                     res = True
                     return
@@ -61,27 +61,24 @@ class IptCleanMaskBackward(IptBase):
                     i = -1
                 if 0 < i < len(ret):
                     last_mask_path = os.path.join(
-                        self.get_value_of("path"), "masks", os.path.basename(ret[i - 1][0])
+                        self.get_value_of("mask_search_path"),
+                        "masks",
+                        os.path.basename(ret[i - 1][0]),
                     )
                     if os.path.isfile(last_mask_path):
                         try:
                             last_mask = cv2.imread(last_mask_path)
                         except Exception as e:
-                            wrapper.error_holder.add_error(
-                                f"{self.name}, unable to read previous mask, exception: {repr(e)}",
-                                target_logger=logger,
+                            logger.error(
+                                f"{self.name}, unable to read previous mask, exception: {repr(e)}"
                             )
                             return
                 elif i == 0:
-                    wrapper.error_holder.add_error(
-                        f"Info {self.name}: first image in series", target_logger=logger
-                    )
+                    logger.error(f"Info {self.name}: first image in series")
                     res = True
                     return
                 elif i >= len(ret):
-                    wrapper.error_holder.add_error(
-                        f"FAIL {self.name}: unknown image", target_logger=logger
-                    )
+                    logger.error(f"FAIL {self.name}: unknown image")
                     return
 
                 wrapper.store_image(image=last_mask, text="previous_mask")
@@ -94,11 +91,7 @@ class IptCleanMaskBackward(IptBase):
                 res = True
         except Exception as e:
             res = False
-            wrapper.error_holder.add_error(
-                new_error_text=f'Failed to process {self. name}: "{repr(e)}"',
-                new_error_level=35,
-                target_logger=logger,
-            )
+            logger.error(f'Failed to process {self. name}: "{repr(e)}"')
         else:
             pass
         finally:
@@ -106,7 +99,11 @@ class IptCleanMaskBackward(IptBase):
 
     @property
     def name(self):
-        return "Clean mask with previous mask (WIP)"
+        return "Clean mask with previous mask"
+
+    @property
+    def is_wip(self):
+        return True
 
     @property
     def package(self):

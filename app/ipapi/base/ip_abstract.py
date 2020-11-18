@@ -1,7 +1,5 @@
-import datetime
 import os
 from typing import Any, Union
-from distutils.version import LooseVersion
 import logging
 
 import math
@@ -22,7 +20,6 @@ from ipapi.tools.regions import (
     AbstractRegion,
 )
 from ipapi.tools.common_functions import time_method, force_directories
-import sys
 
 matplotlib.use("agg")
 
@@ -101,6 +98,9 @@ class BaseImageProcessor(ImageWrapper):
         self._built_channels = {}
 
         self.csv_data_holder = self.init_csv_writer()
+
+    def init_data_holder(self):
+        self.csv_data_holder.clear()
         self.csv_data_holder.update_csv_value("experiment", self.experiment)
         self.csv_data_holder.update_csv_value("plant", self.plant)
         self.csv_data_holder.update_csv_value("date_time", self.date_time)
@@ -110,12 +110,7 @@ class BaseImageProcessor(ImageWrapper):
     def reset(self):
         if self.lock:
             return
-        self.csv_data_holder = self.init_csv_writer()
-        self.csv_data_holder.update_csv_value("experiment", self.experiment)
-        self.csv_data_holder.update_csv_value("plant", self.plant)
-        self.csv_data_holder.update_csv_value("date_time", self.date_time)
-        self.csv_data_holder.update_csv_value("camera", self.camera)
-        self.csv_data_holder.update_csv_value("view_option", self.view_option)
+        self.init_data_holder()
         self._rois_list = []
         self.image_list = []
         self.data_output = {}

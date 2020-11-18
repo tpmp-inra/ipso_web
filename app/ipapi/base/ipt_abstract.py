@@ -1069,7 +1069,6 @@ class IptParamHolder(object):
                 f"Copy or rename image FAILED, unknown naming convention: {output_name_mode}"
             )
             return
-        dst_path = self.get_value_of("path")
 
         # Get new extension
         file_ext = self.get_value_of("output_format")
@@ -1079,7 +1078,7 @@ class IptParamHolder(object):
             file_ext = f".{file_ext}"
 
         # Build destination full path
-        return os.path.join(dst_path, f"{dst_name}{file_ext}")
+        return os.path.join(self.output_path, f"{dst_name}{file_ext}")
 
     def reset_grid_search(self):
         for p in self._param_list:
@@ -1491,11 +1490,7 @@ class IptBase(IptParamHolder, ABC):
         self.wrapper.store_image(
             self.wrapper.current_image, f"Missing {channel} channel", text_overlay=True
         )
-        self.wrapper.error_holder.add_error(
-            f"Missing {channel} channel",
-            new_error_kind="source_issue",
-            target_logger=logger,
-        )
+        logger.error(f"Missing {channel} channel")
 
     def _get_wrapper(self):
         if "wrapper" in self.kwargs:
@@ -1542,9 +1537,7 @@ class IptBase(IptParamHolder, ABC):
             else:
                 return img.copy()
         else:
-            self.wrapper.error_holder.add_error(
-                f"Unknown source format {str(img.type)}", target_logger=logger
-            )
+            logger.error(f"Unknown source format {str(img.type)}")
 
     def to_fuzzy(self, img):
         """
@@ -1562,9 +1555,7 @@ class IptBase(IptParamHolder, ABC):
         ):
             return ((img - img.min()) / (img.max() - img.min()) * 1).astype(np.float)
         else:
-            self.wrapper.error_holder.add_error(
-                f"Unknown source format {str(img.type)}", target_logger=logger
-            )
+            logger.error(f"Unknown source format {str(img.type)}")
 
     def to_bit(self, img, threshold=255):
         """
@@ -1583,9 +1574,7 @@ class IptBase(IptParamHolder, ABC):
         elif (str(img.dtype) == "float64") or (str(img.dtype) == "int32"):
             return ((img - img.min()) / (img.max() - img.min()) * 1).astype(np.uint8)
         else:
-            self.wrapper.error_holder.add_error(
-                f"Unknown source format {str(img.type)}", target_logger=logger
-            )
+            logger.error(f"Unknown source format {str(img.type)}")
 
     @staticmethod
     def apply_mask(image, mask):
@@ -1680,9 +1669,7 @@ class IptBase(IptParamHolder, ABC):
         kernel_shape = self.get_value_of("kernel_shape", None)
 
         if not (len(mask.shape) == 2 or (len(mask.shape) == 3 and mask.shape[2] == 1)):
-            self._wrapper.error_holder.add_error(
-                "Morphology works only on mask images", target_logger=logger
-            )
+            logger.error("Morphology works only on mask images")
             return None
 
         if kernel_shape == "rectangle":
@@ -2015,8 +2002,16 @@ class IptBase(IptParamHolder, ABC):
         return "IPSO Phen"
 
     @property
+    def is_wip(self):
+        return False
+
+    @property
+    def is_deprecated(self):
+        return False
+
+    @property
     def short_test_script(self):
-        return "(wip)" in self.name.lower() or "(deprecated)" in self.name.lower()
+        return self.is_wip or self.is_deprecated
 
     @property
     def needs_previous_mask(self):
