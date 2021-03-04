@@ -44,7 +44,7 @@ from app.funs import (
 )
 from app.auth.funs import check_user_roles
 
-from ipapi.database.db_initializer import available_db_dicts, DbType
+from ipso_phen.ipapi.database.db_initializer import available_db_dicts, DbType
 
 logger = logging.getLogger(__name__)
 

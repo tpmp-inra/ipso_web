@@ -14,11 +14,11 @@ from app import cache, celery
 
 import pandas as pd
 
-from ipapi.base.pipeline_processor import PipelineProcessor
-from ipapi.base.ipt_loose_pipeline import LoosePipeline
-from ipapi.file_handlers.fh_base import file_handler_factory
-from ipapi.database.base import DbInfo
-from ipapi.database.db_factory import db_info_to_database
+from ipso_phen.ipapi.base.pipeline_processor import PipelineProcessor
+from ipso_phen.ipapi.base.ipt_loose_pipeline import LoosePipeline
+from ipso_phen.ipapi.file_handlers.fh_base import file_handler_factory
+from ipso_phen.ipapi.database.base import DbInfo
+from ipso_phen.ipapi.database.db_factory import db_info_to_database
 
 
 def get_user_path(user_name: str, key: str, extra: str = ""):
